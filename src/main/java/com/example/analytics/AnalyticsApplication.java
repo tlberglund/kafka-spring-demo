@@ -47,9 +47,11 @@ interface AnalyticsBinding {
     String PAGE_COUNT_OUT = "pcout";
     String PAGE_COUNT_IN = "pcin";
 
-    // page views
-    @Input(PAGE_VIEWS_IN)
-    KStream<String, PageViewEvent> pageViewsIn();
+    @Input("ratings")
+    KStream<String, Rating> ratingsIn();
+
+    @Input("movies")
+    KTable<String, Movie> moviesIn();
 
     @Output(PAGE_VIEWS_OUT)
     MessageChannel pageViewsOut();
@@ -157,10 +159,33 @@ class CountRestController {
 }
 
 
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-class PageViewEvent {
-    private String userId, page;
-    private long duration;
+class Rating {
+    private long movieId;
+    private double rating;
+}
+
+
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class Movie {
+    private long movieId;
+    private String title;
+    private int releaseYear;
+}
+
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class RatedMovie {
+    private long movieId;
+    private String title;
+    private int releaseYear;
+    private double rating;
 }
