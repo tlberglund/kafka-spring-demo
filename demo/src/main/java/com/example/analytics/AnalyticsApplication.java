@@ -54,7 +54,7 @@ public class AnalyticsApplication {
 		Map<Long, RatedMovie> counts = new HashMap<>();
 
 		ReadOnlyKeyValueStore<Long, RatedMovie> queryableStoreType =
-			iqs.getQueryableStore("rated-movie-store", QueryableStoreTypes.keyValueStore());
+			iqs.getQueryableStore(AnalyticsBinding.RATED_MOVIE_STORE, QueryableStoreTypes.keyValueStore());
 
 		KeyValueIterator<Long, RatedMovie> all = queryableStoreType.all();
 
@@ -74,6 +74,8 @@ interface AnalyticsBinding {
 	String AVERAGE_TABLE = "avg-table";
 	String MOVIE_TABLE = "movies";
 	String RATED_MOVIES = "rated-movies";
+	// final product
+	String RATED_MOVIE_STORE = "rated-movie-store";
 
 	@Input(RAW_RATINGS)
 	KStream<Long, Rating> ratingsIn();
@@ -127,13 +129,13 @@ class MovieProcessor {
 
 		JsonSerde<RatedMovie> jsonSerde = new JsonSerde<>(RatedMovie.class);
 
-		Materialized<Long, RatedMovie, KeyValueStore<Bytes, byte[]>> movieKeyValueStoreMaterialized =
-			Materialized.<Long, RatedMovie, KeyValueStore<Bytes, byte[]>>as("rated-movie-store")
+		Materialized<Long, RatedMovie, KeyValueStore<Bytes, byte[]>> materializedView =
+			Materialized.<Long, RatedMovie, KeyValueStore<Bytes, byte[]>>as(AnalyticsBinding.RATED_MOVIE_STORE)
 				.withKeySerde(Serdes.Long())
 				.withValueSerde(jsonSerde);
 
-		movies.join(ratings, joiner, movieKeyValueStoreMaterialized);
-
+		movies.join(ratings, joiner, materializedView);
+		
 		return movies.join(ratings, joiner).toStream();
 	}
 }
