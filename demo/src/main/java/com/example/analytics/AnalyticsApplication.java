@@ -7,10 +7,7 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.streams.kstream.KGroupedStream;
-import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.KTable;
-import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.*;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -23,15 +20,15 @@ import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Component;
 
 import io.confluent.demo.Rating;
+import io.confluent.demo.Movie;
 
 
 interface AnalyticsBinding {
 
     String RAW_RATINGS = "ratings";
     String AVERAGE_RATINGS = "avg-ratings";
-    String RAW_MOVIES = "raw-movies";
-    String RATED_MOVIES = "rated-movies";
     String MOVIE_TABLE = "movies";
+    String RATED_MOVIES = "rated-movies";
 
     @Input(RAW_RATINGS)
     KStream<Long, Rating> ratingsIn();
@@ -39,9 +36,11 @@ interface AnalyticsBinding {
     @Output(AVERAGE_RATINGS)
     KStream<Long, Double> ratingsOut();
 
-//
-//    @Input(RAW_MOVIES)
-//    KTable<String, Movie> moviesIn();
+    @Input(MOVIE_TABLE)
+    KTable<Long, Movie> moviesIn();
+
+    @Output(RATED_MOVIES)
+    KStream<Long, RatedMovie> moviesOut();
 }
 
 @SpringBootApplication
@@ -88,57 +87,40 @@ class PageViewEventSource implements ApplicationRunner {
 class RatingAverager {
     @StreamListener
     @SendTo(AnalyticsBinding.AVERAGE_RATINGS)
-    public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, Rating> ratings) {
+    public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, Rating> ratings)
+            throws Exception {
 
-//        ratings.foreach((movieId, rating) -> log.debug(rating.toString()));
-
-        log.info("GONNA GROUP");
         KGroupedStream<Long, Double> ratingsById = ratings.mapValues(Rating::getRating).groupByKey();
 
-        log.info("GONNA COUNT");
         KTable<Long, Long> ratingCounts = ratingsById.count();
 
-        log.info("GONNA SUM");
         KTable<Long, Double> ratingSums = ratingsById.reduce((v1, v2) -> v1 + v2,
                 Materialized.with(Serdes.Long(), Serdes.Double()));
 
-        log.info("GONNA JOIN");
         KTable<Long, Double> ratedMovies = ratingSums.join(ratingCounts,
                 (sum, count) -> sum / count.doubleValue(),
                 Materialized.with(Serdes.Long(), Serdes.Double()));
-        log.info("PEACE");
-        return ratingSums.toStream();
+
+        return ratedMovies.toStream();
     }
 }
-//
-//@Component
-//class MovieProcessor {
-//    @StreamListener
-//    @SendTo(AnalyticsBinding.MOVIE_TABLE)
-//    public KTable<Long, Movie> process(@Input(AnalyticsBinding.RATED_MOVIES) KStream<Long, String> rawMovies) {
-//        rawMovies.to(AnalyticsBinding.MOVIE_TABLE, Produced.with(Serdes.Long(), movieSerde));
-//
-//        // Movies table
-//        return builder.table("movies",
-//                Materialized.<Long, Movie, KeyValueStore<Bytes, byte[]>>as("movies-store")
-//                        .withValueSerde(movieSerde)
-//                        .withKeySerde(Serdes.Long()));
-//
-//    }
-//}
 
-//
-//@Log4j2
-//@Component
-//class PageCountSink {
-//
-//    @StreamListener
-//    public void pageCount(@Input((AnalyticsBinding.PAGE_COUNT_IN)) KTable<String, Long> counts) {
-//        counts
-//                .toStream()
-//                .foreach((key, value) -> log.info(key + "=" + value));
-//    }
-//}
+@Component
+class MovieProcessor {
+    @StreamListener
+    @SendTo(AnalyticsBinding.RATED_MOVIES)
+    public KStream<Long, RatedMovie> process(@Input(AnalyticsBinding.MOVIE_TABLE) KTable<Long, Movie> movies,
+                                            @Input(AnalyticsBinding.AVERAGE_RATINGS) KTable<Long, Double> ratings) {
+
+        ValueJoiner<Movie, Double, RatedMovie> joiner = (movie, rating) ->
+                new RatedMovie(movie.getMovieId(),
+                        movie.getTitle().toString(),
+                        movie.getReleaseYear(),
+                        rating);
+
+        return movies.join(ratings, joiner).toStream();
+    }
+}
 
 /*
 @RestController
@@ -175,15 +157,16 @@ class CountRestController {
 //}
 
 
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
-class Movie {
-    private long movieId;
-    private String title;
-    private int releaseYear;
-}
-
+//@Data
+//@AllArgsConstructor
+//@NoArgsConstructor
+//class Movie {
+//    private long movieId;
+//    private String title;
+//    private int releaseYear;
+//}
+//
+//
 
 @Data
 @AllArgsConstructor
