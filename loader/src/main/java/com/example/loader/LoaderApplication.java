@@ -66,7 +66,7 @@ class Producer {
 		this.out = binding.output();
 	}
 
-	@Scheduled(fixedRate = 1_000)
+	@Scheduled(fixedRate = 100)
 	public void produce() throws Exception {
 		var rating = this.ratingService.generateRandomRating(2);
 		var json = toJson(rating);
