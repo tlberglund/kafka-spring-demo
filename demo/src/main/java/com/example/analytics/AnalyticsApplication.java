@@ -1,5 +1,6 @@
 package com.example.analytics;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -7,6 +8,7 @@ import lombok.extern.log4j.Log4j;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.*;
@@ -24,6 +26,7 @@ import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQueryService;
 import org.springframework.cloud.stream.binder.kafka.streams.QueryableStoreRegistry;
 import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.kafka.support.serializer.JsonSerde;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.handler.annotation.SendTo;
@@ -46,7 +49,7 @@ interface AnalyticsBinding {
     String MOVIE_TABLE = "movies";
 
     @Input(RAW_RATINGS)
-    KStream<Long, Rating> ratingsIn();
+    KStream<Long, String> ratingsIn();
 
     @Output(AVERAGE_RATINGS)
     KStream<Long, Double> ratingsOut();
@@ -100,25 +103,33 @@ class PageViewEventSource implements ApplicationRunner {
 class RatingAverager {
     @StreamListener
     @SendTo(AnalyticsBinding.AVERAGE_RATINGS)
-    public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, Rating> ratings) {
+    public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, String> ratings) {
 
-//        ratings.foreach((movieId, rating) -> log.debug(rating.toString()));
+        ObjectMapper mapper = new ObjectMapper();
+        Serde<Rating> domainEventSerde = new JsonSerde<>( Rating.class, mapper );
 
-        log.info("GONNA GROUP");
+        
+
+        input
+                .groupBy(
+                        (s, domainEvent) -> domainEvent.boardUuid,
+                        Serialized.with(null, domainEventSerde))
+                .aggregate(
+                        String::new,
+                        (s, domainEvent, board) -> board.concat(domainEvent.eventType),
+                        Materialized.<String, String, KeyValueStore<Bytes, byte[]>>as("test-events-snapshots").withKeySerde(Serdes.String()).
+                                withValueSerde(Serdes.String())
+                );
         KGroupedStream<Long, Double> ratingsById = ratings.mapValues(Rating::getRating).groupByKey();
 
-        log.info("GONNA COUNT");
         KTable<Long, Long> ratingCounts = ratingsById.count();
 
-        log.info("GONNA SUM");
         KTable<Long, Double> ratingSums = ratingsById.reduce((v1, v2) -> v1 + v2);
 
-        log.info("GONNA JOIN");
         KTable<Long, Double> ratedMovies = ratingSums.join(ratingCounts,
                 (sum, count) -> sum / count.doubleValue(),
                 Materialized.as("average-ratings"));
 
-        log.info("PEACE");
         return ratingSums.toStream();
     }
 }
