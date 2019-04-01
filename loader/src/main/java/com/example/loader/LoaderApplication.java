@@ -1,5 +1,4 @@
 package com.example.loader;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
@@ -7,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.stream.annotation.EnableBinding;
@@ -27,6 +28,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static org.apache.kafka.common.requests.DeleteAclsResponse.log;
+
 @EnableScheduling
 @EnableBinding({Source.class, Sink.class})
 @SpringBootApplication
@@ -37,10 +40,10 @@ public class LoaderApplication {
 	}
 }
 
-@Log4j2
 @Component
 class Consumer {
 
+	private final static Logger log = LoggerFactory.getLogger("Consumer");
 	@StreamListener(Sink.INPUT)
 	public void consume(String json) {
 		log.info("new message has arrived: " + json);
@@ -71,7 +74,7 @@ class Producer {
 			.setHeader(KafkaHeaders.MESSAGE_KEY, Integer.toString(rating.getId()).getBytes())
 			.build();
 		out.send(msg);
-		log.info("trying to send " + json);
+		Producer.log.info("trying to send " + json);
 	}
 
 	@SneakyThrows

@@ -7,11 +7,9 @@ import lombok.extern.log4j.Log4j;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KeyValue;
-import org.apache.kafka.streams.kstream.ForeachAction;
-import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.KTable;
-import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
@@ -41,25 +39,21 @@ import java.util.concurrent.TimeUnit;
 
 interface AnalyticsBinding {
 
-    String PAGE_VIEWS_OUT = "pvout";
-    String PAGE_VIEWS_IN = "pvin";
-    String PAGE_COUNT_MV = "pcmv";
-    String PAGE_COUNT_OUT = "pcout";
-    String PAGE_COUNT_IN = "pcin";
+    String RAW_RATINGS = "ratings";
+    String AVERAGE_RATINGS = "avg-ratings";
+    String RAW_MOVIES = "raw-movies";
+    String RATED_MOVIES = "rated-movies";
+    String MOVIE_TABLE = "movies";
 
-    // page views
-    @Input(PAGE_VIEWS_IN)
-    KStream<String, PageViewEvent> pageViewsIn();
+    @Input(RAW_RATINGS)
+    KStream<Long, Rating> ratingsIn();
 
-    @Output(PAGE_VIEWS_OUT)
-    MessageChannel pageViewsOut();
+    @Output(AVERAGE_RATINGS)
+    KStream<Long, Double> ratingsOut();
 
-    // page cocunts
-    @Output(PAGE_COUNT_OUT)
-    KStream<String, Long> pageCountOut();
-
-    @Input(PAGE_COUNT_IN)
-    KTable<String, Long> pageCountIn();
+//
+//    @Input(RAW_MOVIES)
+//    KTable<String, Movie> moviesIn();
 }
 
 @SpringBootApplication
@@ -76,63 +70,89 @@ public class AnalyticsApplication {
 @Component
 class PageViewEventSource implements ApplicationRunner {
 
-    private final MessageChannel pageViewsOut;
+    //    private final MessageChannel pageViewsOut;
     private final Log log = LogFactory.getLog(getClass());
 
-    public PageViewEventSource(AnalyticsBinding binding) {
-        this.pageViewsOut = binding.pageViewsOut();
-    }
+//    public PageViewEventSource(AnalyticsBinding binding) {
+//        this.pageViewsOut = binding.pageViewsOut();
+//    }
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        List<String> names = Arrays.asList("mfisher", "dyser", "schacko", "abilan", "ozhurakousky", "grussell");
-        List<String> pages = Arrays.asList("blog", "sitemap", "initializr", "news", "colophon", "about");
-        Runnable runnable = () -> {
-            String rPage = pages.get(new Random().nextInt(pages.size()));
-            String rName = pages.get(new Random().nextInt(names.size()));
-            PageViewEvent pageViewEvent = new PageViewEvent(rName, rPage, Math.random() > .5 ? 10 : 1000);
-            Message<PageViewEvent> message = MessageBuilder
-                    .withPayload(pageViewEvent)
-                    .setHeader(KafkaHeaders.MESSAGE_KEY, pageViewEvent.getUserId().getBytes())
-                    .build();
-            try {
-                this.pageViewsOut.send(message);
-                log.info("sent " + message.toString());
-            } catch (Exception e) {
-                log.error(e);
-            }
-        };
-        Executors.newScheduledThreadPool(1).scheduleAtFixedRate(runnable, 1, 1, TimeUnit.SECONDS);
-    }
-}
-
-@Component
-class PageViewEventProcessor {
-
-    @StreamListener
-    @SendTo(AnalyticsBinding.PAGE_COUNT_OUT)
-    public KStream<String, Long> process(@Input(AnalyticsBinding.PAGE_VIEWS_IN) KStream<String, PageViewEvent> events) {
-        return events
-                .filter((key, value) -> value.getDuration() > 10)
-                .map((key, value) -> new KeyValue<>(value.getPage(), "0"))
-                .groupByKey()
-                .count(Materialized.as(AnalyticsBinding.PAGE_COUNT_MV))
-                .toStream();
+//        Runnable runnable = () -> {
+//            Message<PageViewEvent> message = MessageBuilder
+//                    .withPayload(pageViewEvent)
+//                    .setHeader(KafkaHeaders.MESSAGE_KEY, pageViewEvent.getUserId().getBytes())
+//                    .build();
+//            try {
+//                this.pageViewsOut.send(message);
+//                log.info("sent " + message.toString());
+//            } catch (Exception e) {
+//                log.error(e);
+//            }
+//        };
+//        Executors.newScheduledThreadPool(1).scheduleAtFixedRate(runnable, 1, 1, TimeUnit.SECONDS);
     }
 }
 
 @Log4j2
 @Component
-class PageCountSink {
-
+class RatingAverager {
     @StreamListener
-    public void pageCount(@Input((AnalyticsBinding.PAGE_COUNT_IN)) KTable<String, Long> counts) {
-        counts
-                .toStream()
-                .foreach((key, value) -> log.info(key + "=" + value));
+    @SendTo(AnalyticsBinding.AVERAGE_RATINGS)
+    public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, Rating> ratings) {
+
+//        ratings.foreach((movieId, rating) -> log.debug(rating.toString()));
+
+        log.info("GONNA GROUP");
+        KGroupedStream<Long, Double> ratingsById = ratings.mapValues(Rating::getRating).groupByKey();
+
+        log.info("GONNA COUNT");
+        KTable<Long, Long> ratingCounts = ratingsById.count();
+
+        log.info("GONNA SUM");
+        KTable<Long, Double> ratingSums = ratingsById.reduce((v1, v2) -> v1 + v2);
+
+        log.info("GONNA JOIN");
+        KTable<Long, Double> ratedMovies = ratingSums.join(ratingCounts,
+                (sum, count) -> sum / count.doubleValue(),
+                Materialized.as("average-ratings"));
+
+        log.info("PEACE");
+        return ratingSums.toStream();
     }
 }
+//
+//@Component
+//class MovieProcessor {
+//    @StreamListener
+//    @SendTo(AnalyticsBinding.MOVIE_TABLE)
+//    public KTable<Long, Movie> process(@Input(AnalyticsBinding.RATED_MOVIES) KStream<Long, String> rawMovies) {
+//        rawMovies.to(AnalyticsBinding.MOVIE_TABLE, Produced.with(Serdes.Long(), movieSerde));
+//
+//        // Movies table
+//        return builder.table("movies",
+//                Materialized.<Long, Movie, KeyValueStore<Bytes, byte[]>>as("movies-store")
+//                        .withValueSerde(movieSerde)
+//                        .withKeySerde(Serdes.Long()));
+//
+//    }
+//}
 
+//
+//@Log4j2
+//@Component
+//class PageCountSink {
+//
+//    @StreamListener
+//    public void pageCount(@Input((AnalyticsBinding.PAGE_COUNT_IN)) KTable<String, Long> counts) {
+//        counts
+//                .toStream()
+//                .foreach((key, value) -> log.info(key + "=" + value));
+//    }
+//}
+
+/*
 @RestController
 class CountRestController {
 
@@ -156,11 +176,33 @@ class CountRestController {
     }
 }
 
+*/
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-class PageViewEvent {
-    private String userId, page;
-    private long duration;
+class Rating {
+    private long movieId;
+    private double rating;
+}
+
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class Movie {
+    private long movieId;
+    private String title;
+    private int releaseYear;
+}
+
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+class RatedMovie {
+    private long movieId;
+    private String title;
+    private int releaseYear;
+    private double rating;
 }
