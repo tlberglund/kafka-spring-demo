@@ -3,16 +3,14 @@ package com.example.analytics;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.extern.log4j.Log4j;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.streams.KeyValue;
-import org.apache.kafka.streams.kstream.*;
-import org.apache.kafka.streams.state.KeyValueIterator;
-import org.apache.kafka.streams.state.QueryableStoreTypes;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
+import org.apache.kafka.streams.kstream.KGroupedStream;
+import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
@@ -21,20 +19,10 @@ import org.springframework.cloud.stream.annotation.EnableBinding;
 import org.springframework.cloud.stream.annotation.Input;
 import org.springframework.cloud.stream.annotation.Output;
 import org.springframework.cloud.stream.annotation.StreamListener;
-import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQueryService;
-import org.springframework.cloud.stream.binder.kafka.streams.QueryableStoreRegistry;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 
-import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import io.confluent.demo.Rating;
 
 
 interface AnalyticsBinding {
@@ -111,13 +99,13 @@ class RatingAverager {
         KTable<Long, Long> ratingCounts = ratingsById.count();
 
         log.info("GONNA SUM");
-        KTable<Long, Double> ratingSums = ratingsById.reduce((v1, v2) -> v1 + v2);
+        KTable<Long, Double> ratingSums = ratingsById.reduce((v1, v2) -> v1 + v2,
+                Materialized.with(Serdes.Long(), Serdes.Double()));
 
         log.info("GONNA JOIN");
         KTable<Long, Double> ratedMovies = ratingSums.join(ratingCounts,
                 (sum, count) -> sum / count.doubleValue(),
-                Materialized.as("average-ratings"));
-
+                Materialized.with(Serdes.Long(), Serdes.Double()));
         log.info("PEACE");
         return ratingSums.toStream();
     }
@@ -178,13 +166,13 @@ class CountRestController {
 
 */
 
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
-class Rating {
-    private long movieId;
-    private double rating;
-}
+//@Data
+//@AllArgsConstructor
+//@NoArgsConstructor
+//class Rating {
+//    private long movieId;
+//    private double rating;
+//}
 
 
 @Data
