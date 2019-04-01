@@ -7,9 +7,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.state.KeyValueIterator;
+import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.springframework.boot.SpringApplication;
@@ -19,13 +21,18 @@ import org.springframework.cloud.stream.annotation.Input;
 import org.springframework.cloud.stream.annotation.Output;
 import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQueryService;
+import org.springframework.context.annotation.Bean;
+import org.springframework.kafka.support.serializer.JsonSerde;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.function.server.RouterFunction;
+import org.springframework.web.reactive.function.server.ServerResponse;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.springframework.web.reactive.function.server.RouterFunctions.route;
+import static org.springframework.web.reactive.function.server.ServerResponse.ok;
 
 @SpringBootApplication
 @EnableBinding(AnalyticsBinding.class)
@@ -34,27 +41,23 @@ public class AnalyticsApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(AnalyticsApplication.class, args);
 	}
-}
 
-
-@RestController
-class CountRestController {
-
-	private final InteractiveQueryService registry;
-
-	CountRestController(InteractiveQueryService registry) {
-		this.registry = registry;
+	@Bean
+	RouterFunction<ServerResponse> routes(InteractiveQueryService iqs) {
+		return route()
+			.GET("/report", request -> ok().syncBody(counts(iqs)))
+			.build();
 	}
 
-	@GetMapping("/counts")
-	Map<Long, RatedMovie> counts() {
+	Map<Long, RatedMovie> counts(InteractiveQueryService iqs) {
 
 		Map<Long, RatedMovie> counts = new HashMap<>();
 
 		ReadOnlyKeyValueStore<Long, RatedMovie> queryableStoreType =
-			this.registry.getQueryableStore(AnalyticsBinding.RATED_MOVIES, QueryableStoreTypes.keyValueStore());
+			iqs.getQueryableStore("rated-movie-store", QueryableStoreTypes.keyValueStore());
 
 		KeyValueIterator<Long, RatedMovie> all = queryableStoreType.all();
+
 		while (all.hasNext()) {
 			KeyValue<Long, RatedMovie> value = all.next();
 			counts.put(value.key, value.value);
@@ -62,6 +65,7 @@ class CountRestController {
 		return counts;
 	}
 }
+
 
 interface AnalyticsBinding {
 
@@ -120,6 +124,15 @@ class MovieProcessor {
 				movie.getTitle(),
 				movie.getReleaseYear(),
 				rating);
+
+		JsonSerde<RatedMovie> jsonSerde = new JsonSerde<>(RatedMovie.class);
+
+		Materialized<Long, RatedMovie, KeyValueStore<Bytes, byte[]>> movieKeyValueStoreMaterialized =
+			Materialized.<Long, RatedMovie, KeyValueStore<Bytes, byte[]>>as("rated-movie-store")
+				.withKeySerde(Serdes.Long())
+				.withValueSerde(jsonSerde);
+
+		movies.join(ratings, joiner, movieKeyValueStoreMaterialized);
 
 		return movies.join(ratings, joiner).toStream();
 	}
