@@ -49,7 +49,7 @@ interface AnalyticsBinding {
     String MOVIE_TABLE = "movies";
 
     @Input(RAW_RATINGS)
-    KStream<Long, String> ratingsIn();
+    KStream<Long, Rating> ratingsIn();
 
     @Output(AVERAGE_RATINGS)
     KStream<Long, Double> ratingsOut();
@@ -103,23 +103,23 @@ class PageViewEventSource implements ApplicationRunner {
 class RatingAverager {
     @StreamListener
     @SendTo(AnalyticsBinding.AVERAGE_RATINGS)
-    public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, String> ratings) {
+    public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, Rating> ratings) {
 
         ObjectMapper mapper = new ObjectMapper();
         Serde<Rating> domainEventSerde = new JsonSerde<>( Rating.class, mapper );
 
-        
-
-        input
-                .groupBy(
-                        (s, domainEvent) -> domainEvent.boardUuid,
-                        Serialized.with(null, domainEventSerde))
-                .aggregate(
-                        String::new,
-                        (s, domainEvent, board) -> board.concat(domainEvent.eventType),
-                        Materialized.<String, String, KeyValueStore<Bytes, byte[]>>as("test-events-snapshots").withKeySerde(Serdes.String()).
-                                withValueSerde(Serdes.String())
-                );
+//
+//
+//        input
+//                .groupBy(
+//                        (s, domainEvent) -> domainEvent.boardUuid,
+//                        Serialized.with(null, domainEventSerde))
+//                .aggregate(
+//                        String::new,
+//                        (s, domainEvent, board) -> board.concat(domainEvent.eventType),
+//                        Materialized.<String, String, KeyValueStore<Bytes, byte[]>>as("test-events-snapshots").withKeySerde(Serdes.String()).
+//                                withValueSerde(Serdes.String())
+//                );
         KGroupedStream<Long, Double> ratingsById = ratings.mapValues(Rating::getRating).groupByKey();
 
         KTable<Long, Long> ratingCounts = ratingsById.count();
