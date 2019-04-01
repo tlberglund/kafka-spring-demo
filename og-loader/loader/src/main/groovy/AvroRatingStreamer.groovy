@@ -13,6 +13,7 @@ class AvroRatingStreamer {
 
 
     Properties props = new Properties()
+    println args[0]
     props.load(new FileInputStream(new File(args[0])))
 
     def bootstrapServer = props.get('bootstrap.servers')
