@@ -106,7 +106,7 @@ class RatingAverager {
                 Materialized.with(Serdes.Long(), Serdes.Double()));
 
         final KStream<Long, Double> longDoubleKStream = ratedMovies.toStream();
-        longDoubleKStream.foreach((key, value) -> System.out.println("K/V:" + key +"/" + value));
+//        longDoubleKStream.foreach((key, value) -> System.out.println("K/V:" + key +"/" + value));
 
         return longDoubleKStream;
     }
@@ -127,7 +127,7 @@ class MovieProcessor {
 
         final KStream<Long, RatedMovie> longRatedMovieKStream = movies.join(ratings, joiner).toStream();
 
-        longRatedMovieKStream.foreach((key, value) -> System.out.println("F/B:" + key +"/" + value));
+//        longRatedMovieKStream.foreach((key, value) -> System.out.println("F/B:" + key +"/" + value));
         return longRatedMovieKStream;
     }
 }
