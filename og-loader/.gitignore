@@ -1,0 +1,13 @@
+.gradle/
+build/
+out/
+*.iws
+*.iml
+*.ipr
+target/
+.classpath
+.project
+.settings
+bin
+.idea/
+workshop/delta_configs
