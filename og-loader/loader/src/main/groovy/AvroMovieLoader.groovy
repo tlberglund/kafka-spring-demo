@@ -30,7 +30,7 @@ class AvroMovieLoader {
          def movieFile = new File(props.get('movies.file'))
          movieFile.eachLine { line ->
            Movie movie = Parser.parseMovie(line)
-           def pr = new ProducerRecord('raw-movies', movie.movieId, movie)
+           def pr = new ProducerRecord('movies', movie.movieId, movie)
            producer.send(pr)
          }
       }

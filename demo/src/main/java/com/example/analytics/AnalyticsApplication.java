@@ -27,7 +27,7 @@ interface AnalyticsBinding {
 
     String RAW_RATINGS = "ratings";
     String AVERAGE_RATINGS = "avg-ratings";
-    String AVERAGE_TABLE = "avg-ratings-table";
+    String AVERAGE_TABLE = "avg-table";
     String MOVIE_TABLE = "movies";
     String RATED_MOVIES = "rated-movies";
 
@@ -37,11 +37,11 @@ interface AnalyticsBinding {
     @Output(AVERAGE_RATINGS)
     KStream<Long, Double> ratingsOut();
 
-    @Input(AVERAGE_TABLE)
-    KTable<Long, Double> ratingsToTable();
-
     @Input(MOVIE_TABLE)
     KTable<Long, Movie> moviesIn();
+
+    @Input(AVERAGE_TABLE)
+    KTable<Long, Double> avgRatings();
 
     @Output(RATED_MOVIES)
     KStream<Long, RatedMovie> moviesOut();
@@ -105,7 +105,10 @@ class RatingAverager {
                 (sum, count) -> sum / count.doubleValue(),
                 Materialized.with(Serdes.Long(), Serdes.Double()));
 
-        return ratedMovies.toStream();
+        final KStream<Long, Double> longDoubleKStream = ratedMovies.toStream();
+        longDoubleKStream.foreach((key, value) -> System.out.println("K/V:" + key +"/" + value));
+
+        return longDoubleKStream;
     }
 }
 
@@ -113,8 +116,8 @@ class RatingAverager {
 class MovieProcessor {
     @StreamListener
     @SendTo(AnalyticsBinding.RATED_MOVIES)
-    public KStream<Long, RatedMovie> processAgain(@Input(AnalyticsBinding.MOVIE_TABLE) KTable<Long, Movie> movies,
-                                            @Input(AnalyticsBinding.AVERAGE_TABLE) KTable<Long, Double> ratings) {
+    public KStream<Long, RatedMovie> processX(@Input(AnalyticsBinding.MOVIE_TABLE) KTable<Long, Movie> movies,
+                                              @Input(AnalyticsBinding.AVERAGE_TABLE) KTable<Long, Double> ratings) {
 
         ValueJoiner<Movie, Double, RatedMovie> joiner = (movie, rating) ->
                 new RatedMovie(movie.getMovieId(),
@@ -122,7 +125,10 @@ class MovieProcessor {
                         movie.getReleaseYear(),
                         rating);
 
-        return movies.join(ratings, joiner).toStream();
+        final KStream<Long, RatedMovie> longRatedMovieKStream = movies.join(ratings, joiner).toStream();
+
+        longRatedMovieKStream.foreach((key, value) -> System.out.println("F/B:" + key +"/" + value));
+        return longRatedMovieKStream;
     }
 }
 
