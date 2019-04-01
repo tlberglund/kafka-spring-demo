@@ -102,18 +102,24 @@ class RatingAverager {
     @SendTo(AnalyticsBinding.AVERAGE_RATINGS)
     public KStream<Long, Double> process(@Input(AnalyticsBinding.RAW_RATINGS) KStream<Long, Rating> ratings) {
 
-        ratings.foreach((movieId, rating) -> log.debug(rating.toString()));
+//        ratings.foreach((movieId, rating) -> log.debug(rating.toString()));
 
+        log.info("GONNA GROUP");
         KGroupedStream<Long, Double> ratingsById = ratings.mapValues(Rating::getRating).groupByKey();
 
+        log.info("GONNA COUNT");
         KTable<Long, Long> ratingCounts = ratingsById.count();
+
+        log.info("GONNA SUM");
         KTable<Long, Double> ratingSums = ratingsById.reduce((v1, v2) -> v1 + v2);
 
+        log.info("GONNA JOIN");
         KTable<Long, Double> ratedMovies = ratingSums.join(ratingCounts,
                 (sum, count) -> sum / count.doubleValue(),
                 Materialized.as("average-ratings"));
 
-        return ratedMovies.toStream();
+        log.info("PEACE");
+        return ratingSums.toStream();
     }
 }
 //
