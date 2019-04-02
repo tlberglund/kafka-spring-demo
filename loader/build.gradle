@@ -62,7 +62,7 @@ project(':loader') {
     tasks.create(name: "streamWith${generatorName}", type: JavaExec) {
       main = generatorName
       classpath = sourceSets.main.runtimeClasspath
-      // args = [project.getProperty('configPath')]
+      // args = [project.getProperty('configPath')] /// todo figure out how to extract this out into a method/function/macro/whatever in groovy + gradle files
       args = [ env["CONFIG_PATH"] ?: System.getProperty ("user.home" ) + project.getProperty('configPath')   ]
     }
   }
