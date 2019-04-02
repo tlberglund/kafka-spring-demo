@@ -45,11 +45,11 @@ public class AnalyticsApplication {
 	@Bean
 	RouterFunction<ServerResponse> routes(InteractiveQueryService iqs) {
 		return route()
-			.GET("/report", request -> ok().syncBody(counts(iqs)))
+			.GET("/report", request -> ok().syncBody(produceReport(iqs)))
 			.build();
 	}
 
-	Map<Long, RatedMovie> counts(InteractiveQueryService iqs) {
+	Map<Long, RatedMovie> produceReport(InteractiveQueryService iqs) {
 
 		Map<Long, RatedMovie> counts = new HashMap<>();
 
@@ -64,8 +64,8 @@ public class AnalyticsApplication {
 		}
 		return counts;
 	}
-}
 
+}
 
 interface AnalyticsBinding {
 
@@ -135,7 +135,7 @@ class MovieProcessor {
 				.withValueSerde(jsonSerde);
 
 		movies.join(ratings, joiner, materializedView);
-		
+
 		return movies.join(ratings, joiner).toStream();
 	}
 }
