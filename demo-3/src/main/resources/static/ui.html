@@ -2,16 +2,22 @@
 <head>
     <title> Movies </title>
     <style>
+        body {
+            font-family: sans-serif;
+        }
+
         .title {
+            width: 200px;
             font-size: larger;
             font-weight: bold;
         }
 
         .year {
+            width: 100px;
         }
 
         .rating {
-            font-family: sans-serif;
+            width: 100px;
         }
     </style>
 </head>
@@ -32,11 +38,16 @@
                 div = newNode;
             }
 
-            var trHtml = html.replace('TITLE', data.title).replace('YEAR', data.releaseYear).replace('RATING', data.rating);
+            var incomingRating = data.rating;
+            var fixedRating = Number.parseFloat(incomingRating).toFixed(4)
+            var trHtml = html.replace('TITLE', data.title).replace('YEAR', data.releaseYear).replace('RATING', fixedRating);
             div.innerHTML = trHtml;
         };
     });
 </script>
+<h1>
+    Movies
+</h1>
 <table id="ratings">
 
 </table>
