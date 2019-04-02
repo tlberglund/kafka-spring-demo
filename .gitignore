@@ -1,9 +1,5 @@
 
 !.mvn/wrapper/maven-wrapper.jar
-### IntelliJ IDEA ###
-### NetBeans ###
-### STS ###
-### VS Code ###
 *.iml
 *.ipr
 *.iws
@@ -25,7 +21,6 @@
 /nbdist/
 /nbproject/private/
 /target/
-HELP.md
 bin
 build/
 out/
