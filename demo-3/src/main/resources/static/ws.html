@@ -1,0 +1,43 @@
+<html>
+<head>
+    <title> Movies </title>
+    <style>
+        .title {
+            font-size: larger;
+            font-weight: bold;
+        }
+
+        .year {
+        }
+
+        .rating {
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<script>
+    window.addEventListener('load', function () {
+        var es = new EventSource('http://localhost:8080/sse');
+        var html = "<tr><td class='title'>TITLE</td><td class='year'>YEAR</td><td class='rating'>RATING</td></tr> ";
+        es.onmessage = function (msg) {
+            var ratings = document.getElementById('ratings');
+            var data = JSON.parse(msg.data);
+            var divId = data.id + '';
+            var div = document.getElementById(divId);
+            if (div == null) {
+                var newNode = document.createElement('tr')
+                newNode.id = divId;
+                newNode.setAttribute('id', divId);
+                ratings.appendChild(newNode);
+                div = newNode;
+            }
+
+            var trHtml = html.replace('TITLE', data.title).replace('YEAR', data.releaseYear).replace('RATING', data.rating);
+            div.innerHTML = trHtml;
+        };
+    });
+</script>
+<table id="ratings">
+
+</table>
+</html>

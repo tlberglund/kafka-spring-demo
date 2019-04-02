@@ -1,36 +1,36 @@
 package com.example.scs;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.confluent.demo.Movie;
 import io.confluent.demo.Rating;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.utils.Bytes;
-import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.*;
-import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
-import org.apache.kafka.streams.state.QueryableStoreTypes;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.stream.annotation.EnableBinding;
 import org.springframework.cloud.stream.annotation.Input;
 import org.springframework.cloud.stream.annotation.Output;
 import org.springframework.cloud.stream.annotation.StreamListener;
-import org.springframework.cloud.stream.binder.kafka.streams.InteractiveQueryService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.serializer.JsonSerde;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
+import reactor.core.publisher.Flux;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
+import static org.springframework.http.MediaType.TEXT_EVENT_STREAM;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 import static org.springframework.web.reactive.function.server.ServerResponse.ok;
 
@@ -43,9 +43,10 @@ public class ScsApplication {
 	}
 }
 
+@Log4j2
 @Configuration
 class HttpConfiguration {
-
+/*
 	@Bean
 	RouterFunction<ServerResponse> routes(InteractiveQueryService iqs) {
 		return route()
@@ -63,6 +64,37 @@ class HttpConfiguration {
 			counts.put(value.key, value.value);
 		}
 		return counts;
+	}*/
+
+
+	private final ObjectMapper objectMapper;
+	private final BlockingQueue<RatedMovie> ratings = new LinkedBlockingQueue<>();
+	private final Flux<RatedMovie> publisher = Flux.create(sink -> {
+		while (true) {
+			try {
+				sink.next(ratings.take());
+			}
+			catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	});
+
+	HttpConfiguration(ObjectMapper objectMapper) {
+		this.objectMapper = objectMapper;
+	}
+
+	@Bean
+	RouterFunction<ServerResponse> routes() {
+		return route()
+			.GET("/sse", request -> ok().contentType(TEXT_EVENT_STREAM).body(publisher.share(), RatedMovie.class))
+			.build();
+	}
+
+	@KafkaListener(topics = Bindings.RATED_MOVIES)
+	public void listenForNewMessages(String rating) throws Exception {
+		RatedMovie ratedMovie = objectMapper.readValue(rating, RatedMovie.class);
+		this.ratings.offer(ratedMovie);
 	}
 }
 
