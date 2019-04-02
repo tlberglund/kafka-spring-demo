@@ -62,14 +62,15 @@ project(':loader') {
     tasks.create(name: "streamWith${generatorName}", type: JavaExec) {
       main = generatorName
       classpath = sourceSets.main.runtimeClasspath
-      args = [project.getProperty('configPath')]
+      // args = [project.getProperty('configPath')]
+      args = [ env["CONFIG_PATH"] ?: System.getProperty ("user.home" ) + project.getProperty('configPath')   ]
     }
   }
 
   task loadAvroMovies(type: JavaExec) {
     main = 'AvroMovieLoader'
-    classpath = sourceSets.main.runtimeClasspath
-    args = [project.getProperty('configPath')]
+    classpath = sourceSets.main.runtimeClasspath 
+    args = [ env["CONFIG_PATH"] ?: System.getProperty ("user.home" ) + project.getProperty('configPath')   ]
   }
 
   jar {
