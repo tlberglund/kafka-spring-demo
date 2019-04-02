@@ -1,4 +1,33 @@
-.idea/
-*.iml
-target/
 
+!.mvn/wrapper/maven-wrapper.jar
+### IntelliJ IDEA ###
+### NetBeans ###
+### STS ###
+### VS Code ###
+*.iml
+*.ipr
+*.iws
+.apt_generated
+.classpath
+.factorypath
+.gradle/
+.idea
+.idea/
+.project
+.settings
+.springBeans
+.sts4-cache
+.vscode/
+/.nb-gradle/
+/build/
+/dist/
+/nbbuild/
+/nbdist/
+/nbproject/private/
+/target/
+HELP.md
+bin
+build/
+out/
+target/
+workshop/delta_configs
