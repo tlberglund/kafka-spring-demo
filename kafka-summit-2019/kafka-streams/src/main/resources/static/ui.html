@@ -23,7 +23,7 @@
 </head>
 <script>
     window.addEventListener('load', function () {
-        var es = new EventSource('http://localhost:8080/sse');
+        var es = new EventSource('http://localhost:8080/ratings');
         var html = "<tr><td class='title'>TITLE</td><td class='year'>YEAR</td><td class='rating'>RATING</td></tr> ";
         es.onmessage = function (msg) {
             var ratings = document.getElementById('ratings');

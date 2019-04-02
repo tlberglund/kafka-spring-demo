@@ -12,53 +12,47 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
 @SpringBootApplication
 public class BasicsApplication {
 
-
 	public static void main(String[] args) {
 		SpringApplication.run(BasicsApplication.class, args);
 	}
+
 }
 
-interface BasicsBindings {
-	String MESSAGES = "messages";
-}
-
-@Log4j2
 @Component
+@Log4j2
 class Producer {
 
-	private final KafkaTemplate<String, Greeting> kafkaTemplate;
+	private final KafkaTemplate<String, Greeting> template;
 
-	Producer(KafkaTemplate<String, Greeting> kafkaTemplate) {
-		this.kafkaTemplate = kafkaTemplate;
+	Producer(KafkaTemplate<String, Greeting> template) {
+		this.template = template;
 	}
 
 	@EventListener(ApplicationReadyEvent.class)
-	public void produce() {
+	public void process() throws Exception {
 
 		IntStream
 			.range(0, 10)
-			.mapToObj(value ->
-				this.kafkaTemplate
-					.send(BasicsBindings.MESSAGES, UUID.randomUUID().toString(), new Greeting("hello @ " + Instant.now()))
-			)
+			.mapToObj(value -> new Greeting("hello @ " + value))
+			.map(g -> this.template.send("greetings", "g" + UUID.randomUUID().toString(), g))
 			.forEach(log::info);
 	}
+
 }
 
 @Log4j2
 @Component
 class Consumer {
 
-	@KafkaListener(topics = BasicsBindings.MESSAGES)
-	public void consume(Greeting greeting) {
-		log.info("new message: " + greeting.toString());
+	@KafkaListener(topics = "greetings")
+	void onNewGreeting(Greeting greeting) {
+		log.info("new greeting: " + greeting.toString());
 	}
 }
 
