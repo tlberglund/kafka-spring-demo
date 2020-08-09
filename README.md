@@ -1,6 +1,6 @@
 # Spring and Kafka Demo 
 
-This is the demo for [Tim Berglund](http://twitter.com/tlberglund) and [Josh Long](http://twitter.com/Starbuxman)'s talk for the Kafka Summit 2019 edition in NYC. 
+This is the demo for [Tim Berglund](http://twitter.com/tlberglund) and [Josh Long](http://twitter.com/Starbuxman)'s [talk for the Kafka Summit 2019 edition in NYC](https://www.confluent.io/kafka-summit-ny19/stream-processing-with-the-spring-framework). 
 
 The code is in major parts the work of Tim Berglund, Soby Chacko, Josh Long, and Viktor Gamov, among others. 
 
